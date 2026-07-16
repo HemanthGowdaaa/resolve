@@ -2,12 +2,8 @@ import axios from "axios";
 import { Platform } from "react-native";
 import { useAuthStore } from "../store/useAuthStore";
 
-// Resolves host machine loopback depending on device platform
-export const API_BASE_URL = Platform.select({
-  ios: "http://localhost:8000",
-  android: "http://10.0.2.2:8000",
-  default: "http://localhost:8000",
-});
+// Target production Render backend server
+export const API_BASE_URL = "https://resolve-48wh.onrender.com";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
