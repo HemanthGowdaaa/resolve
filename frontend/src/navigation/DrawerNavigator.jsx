@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     alignItems: "center",
     borderBottomWidth: 1,
-    spaceAfter: SPACING.md,
+    marginBottom: SPACING.md,
   },
   avatar: {
     width: 80,

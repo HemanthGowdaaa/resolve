@@ -50,13 +50,13 @@ export const RegisterScreen = ({ navigation }) => {
       );
       
       // 2. Save tokens first so subsequent requests are authenticated
-      setTokens(response.access, response.refresh);
+      await setTokens(response.access, response.refresh);
       
       // 3. Fetch User Profile Info
       const profile = await AuthService.getProfile();
       
       // 4. Set the user profile in store
-      setUser(profile);
+      await setUser(profile);
       
       Alert.alert("Success", "Account created successfully!");
     } catch (error) {

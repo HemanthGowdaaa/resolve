@@ -41,13 +41,13 @@ export const LoginScreen = ({ navigation }) => {
       const response = await AuthService.login(data.email, data.password);
       
       // 1. Store tokens first so subsequent requests are authenticated
-      setTokens(response.access, response.refresh);
+      await setTokens(response.access, response.refresh);
       
       // 2. Access profile details
       const profile = await AuthService.getProfile();
       
       // 3. Store user profile in store
-      setUser(profile);
+      await setUser(profile);
     } catch (error) {
       const errorMsg = error.response?.data?.detail || "Invalid email or password credentials.";
       Alert.alert("Login Failed", errorMsg);
@@ -63,13 +63,13 @@ export const LoginScreen = ({ navigation }) => {
       const response = await AuthService.googleLogin("mock_token_12345");
       
       // 1. Store tokens first
-      setTokens(response.access, response.refresh);
+      await setTokens(response.access, response.refresh);
       
       // 2. Fetch profile
       const profile = await AuthService.getProfile();
       
       // 3. Set profile in store
-      setUser(profile);
+      await setUser(profile);
     } catch (error) {
       Alert.alert("Google Sign-In Failed", "Could not complete Google authentication.");
     } finally {
