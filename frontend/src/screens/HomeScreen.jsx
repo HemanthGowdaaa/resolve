@@ -88,6 +88,7 @@ export const HomeScreen = ({ navigation }) => {
   };
 
   const handleCheckIn = () => {
+    console.log("[CHECKIN] Button Pressed - Starting check-in save");
     if (!reflectionText.trim()) {
       Alert.alert("Error", "Reflection text cannot be empty.");
       return;
@@ -105,7 +106,9 @@ export const HomeScreen = ({ navigation }) => {
     }
 
     if (result) {
+      console.log("[CHECKIN] SQLite Updated - Save reflection successful");
       loadData();
+      console.log("[CHECKIN] Calendar Updated - Local streaks and grids refreshed");
       Alert.alert("Success", todayReflection ? "Reflection updated." : "Checked in! Keep up the consistency. ✨");
       
       // Reschedule reminders to skip today's triggers since check-in is complete
@@ -117,8 +120,12 @@ export const HomeScreen = ({ navigation }) => {
       }
 
       // Trigger background sync in the background
+      console.log("[CHECKIN] Sync Queued - Starting server synchronization");
       SyncManager.runSync().then((res) => {
-        if (res.success) loadData();
+        if (res.success) {
+          console.log("[CHECKIN] Backend Updated - Sync resolved successfully");
+          loadData();
+        }
       });
     } else {
       Alert.alert("Error", "Failed to save reflection.");
@@ -138,9 +145,12 @@ export const HomeScreen = ({ navigation }) => {
           text: "Delete",
           style: "destructive",
           onPress: () => {
+            console.log("[CHECKIN] Delete Pressed - Deleting today's check-in");
             const success = ReflectionsRepository.delete(todayReflection.id);
             if (success) {
+              console.log("[CHECKIN] SQLite Updated - Mark reflection deleted");
               loadData();
+              console.log("[CHECKIN] Calendar Updated - Streaks and grids refreshed");
 
               // Reschedule reminders to restore today's triggers since check-in was deleted
               try {
@@ -150,8 +160,12 @@ export const HomeScreen = ({ navigation }) => {
                 console.warn("Failed to reschedule reminders after delete:", err.message);
               }
 
+              console.log("[CHECKIN] Sync Queued - Queuing server deletion sync");
               SyncManager.runSync().then((res) => {
-                if (res.success) loadData();
+                if (res.success) {
+                  console.log("[CHECKIN] Backend Updated - Server sync completed successfully");
+                  loadData();
+                }
               });
             }
           }

@@ -37,12 +37,13 @@ export const NotificationService = {
       }
       
       if (finalStatus !== "granted") {
-        console.log("Notification permissions were not granted.");
+        console.log("[NOTIFICATIONS] Permission Denied - permissions disabled by user.");
         return false;
       }
+      console.log("[NOTIFICATIONS] Permission Granted - notification delivery enabled.");
       return true;
     } catch (error) {
-      console.error("Failed to request notification permissions:", error);
+      console.error("[NOTIFICATIONS] Failed to request notification permissions:", error);
       return false;
     }
   },
@@ -51,9 +52,9 @@ export const NotificationService = {
     if (Platform.OS === "web") return;
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
-      console.log("All scheduled reminders cancelled.");
+      console.log("[NOTIFICATIONS] Notification Cancelled - All scheduled alerts cleared");
     } catch (error) {
-      console.error("Failed to cancel scheduled reminders:", error);
+      console.error("[NOTIFICATIONS] Failed to cancel scheduled reminders:", error);
     }
   },
 
@@ -66,7 +67,7 @@ export const NotificationService = {
 
       const hasPermission = await NotificationService.requestPermissions();
       if (!hasPermission) {
-        console.log("Notification permission not granted, skipping scheduling.");
+        console.log("[NOTIFICATIONS] Permission Denied - Skipping scheduling.");
         return;
       }
 
@@ -79,7 +80,7 @@ export const NotificationService = {
 
       const scheduleReminder = async (id, reminder, defaultTime) => {
         if (!reminder || reminder.enabled !== 1) {
-          console.log(`Reminder ${id} is disabled, skipped scheduling.`);
+          console.log(`[NOTIFICATIONS] Notification Cancelled - Reminder ${id} is disabled, skipping.`);
           return;
         }
 
@@ -110,7 +111,7 @@ export const NotificationService = {
               date: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), hour, minute, 0),
             },
           });
-          console.log(`Scheduled skipped-today reminder ${id} for tomorrow at ${hour}:${minute}`);
+          console.log(`[NOTIFICATIONS] Notification Scheduled - skipped-today reminder ${id} for tomorrow at ${hour}:${minute}`);
         } else {
           // Regular daily recurring trigger
           await Notifications.scheduleNotificationAsync({
@@ -126,7 +127,7 @@ export const NotificationService = {
               repeats: true,
             },
           });
-          console.log(`Scheduled daily repeating reminder ${id} for ${hour}:${minute}`);
+          console.log(`[NOTIFICATIONS] Notification Scheduled - daily repeating reminder ${id} for ${hour}:${minute}`);
         }
       };
 

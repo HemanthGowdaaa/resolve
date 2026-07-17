@@ -44,28 +44,23 @@ export const calculateLocalStreak = (reflections) => {
     }
   }
 
-  // Calculate longest streak
+  // Calculate longest streak using robust date-string checks
   let longestStreak = 0;
   let currentLen = 0;
-  let prevDate = null;
 
-  for (const dateStr of uniqueDates) {
-    const currentDate = new Date(dateStr);
-    
-    if (prevDate === null) {
+  for (let i = 0; i < uniqueDates.length; i++) {
+    const dateStr = uniqueDates[i];
+    if (i === 0) {
       currentLen = 1;
     } else {
-      const diffTime = Math.abs(currentDate - prevDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 1) {
+      const prevDateStr = uniqueDates[i - 1];
+      if (getYesterdayStr(dateStr) === prevDateStr) {
         currentLen += 1;
-      } else if (diffDays > 1) {
+      } else {
         longestStreak = Math.max(longestStreak, currentLen);
         currentLen = 1;
       }
     }
-    prevDate = currentDate;
   }
   
   longestStreak = Math.max(longestStreak, currentLen);

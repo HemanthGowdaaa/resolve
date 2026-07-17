@@ -50,6 +50,7 @@ export const ReflectionsRepository = {
     const timestamp = new Date().toISOString();
     
     try {
+      console.log(`[DATABASE] Insert - Creating reflection row with UUID: ${uuid}`);
       db.runSync(
         `INSERT INTO reflections (id, date, reflection_text, version, is_deleted, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?);`,
@@ -65,6 +66,7 @@ export const ReflectionsRepository = {
   update: (id, reflectionText) => {
     const timestamp = new Date().toISOString();
     try {
+      console.log(`[DATABASE] Update - Updating reflection row with ID: ${id}`);
       db.runSync(
         `UPDATE reflections 
          SET reflection_text = ?, version = version + 1, updated_at = ?
@@ -81,6 +83,7 @@ export const ReflectionsRepository = {
   delete: (id) => {
     const timestamp = new Date().toISOString();
     try {
+      console.log(`[DATABASE] Delete - Soft-deleting reflection row with ID: ${id}`);
       db.runSync(
         `UPDATE reflections 
          SET is_deleted = 1, version = version + 1, updated_at = ?

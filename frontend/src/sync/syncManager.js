@@ -21,7 +21,7 @@ export const SyncManager = {
     }
 
     SyncManager.isSyncing = true;
-    console.log("Starting database synchronization...");
+    console.log("[SYNC] Sync Started - Resolving database changes");
 
     try {
       // 1. Gather last sync timestamp
@@ -53,6 +53,8 @@ export const SyncManager = {
         last_sync_time: lastSyncTime,
       };
 
+      console.log(`[SYNC] Queue Created - reflections payload count: ${payload.reflections.length}, reminders payload count: ${payload.reminders.length}`);
+
       // 4. Send request to backend
       const response = await SyncService.syncData(payload);
 
@@ -61,10 +63,12 @@ export const SyncManager = {
 
         // 5. Update local database with server changes
         for (const ref of serverRefs) {
+          console.log(`[SYNC] Conflict - Overwriting local state with server changes for reflection: ${ref.id}`);
           ReflectionsRepository.upsert(ref);
         }
 
         for (const rem of serverRems) {
+          console.log(`[SYNC] Conflict - Overwriting local state with server changes for reminder: ${rem.id}`);
           RemindersRepository.upsert(rem);
         }
 
@@ -87,14 +91,14 @@ export const SyncManager = {
         const newSyncTimestamp = new Date().toISOString();
         usePreferenceStore.getState().setLastSyncTime(newSyncTimestamp);
         
-        console.log("Database synchronization completed successfully.");
+        console.log("[SYNC] Sync Completed - database tables successfully synchronized.");
         SyncManager.isSyncing = false;
         return { success: true };
       } else {
         throw new Error("Invalid sync response structure");
       }
     } catch (error) {
-      console.error("Database synchronization failed:", error.message);
+      console.error("[SYNC] Sync Failed - error:", error.message);
       SyncManager.isSyncing = false;
       return { success: false, reason: "api_failure", error };
     }

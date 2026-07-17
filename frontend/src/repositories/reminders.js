@@ -6,6 +6,7 @@ export const RemindersRepository = {
       let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_1"]);
       if (!reminder) {
         const timestamp = new Date().toISOString();
+        console.log("[DATABASE] Insert - Seeding default reminder 1 (18:00)");
         db.runSync(
           `INSERT INTO reminders (id, time, enabled, repeat_daily, version, is_deleted, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?);`,
@@ -25,6 +26,7 @@ export const RemindersRepository = {
       let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_2"]);
       if (!reminder) {
         const timestamp = new Date().toISOString();
+        console.log("[DATABASE] Insert - Seeding default reminder 2 (10:00)");
         db.runSync(
           `INSERT INTO reminders (id, time, enabled, repeat_daily, version, is_deleted, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?);`,
@@ -66,6 +68,7 @@ export const RemindersRepository = {
     const enabledNum = enabled ? 1 : 0;
     const timestamp = new Date().toISOString();
     try {
+      console.log(`[DATABASE] Update - Updating reminder row with ID: ${id}`);
       db.runSync(
         `UPDATE reminders 
          SET time = ?, enabled = ?, version = version + 1, updated_at = ?

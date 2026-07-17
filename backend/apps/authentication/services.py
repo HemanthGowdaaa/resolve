@@ -28,28 +28,30 @@ class AuthenticationService:
         """
         Registers a new user with email and password.
         """
-        if User.objects.filter(email=email).exists():
+        normalized_email = str(email).lower().strip()
+        if User.objects.filter(email=normalized_email).exists():
             raise ValidationError({"email": "A user with this email already exists."})
             
         try:
             user = User.objects.create_user(
-                email=email,
+                email=normalized_email,
                 password=password,
                 full_name=full_name
             )
-            logger.info(f"User registered successfully: {email}")
+            logger.info(f"User registered successfully: {normalized_email}")
             return user
         except Exception as e:
-            logger.error(f"Error during registration for {email}: {str(e)}")
+            logger.error(f"Error during registration for {normalized_email}: {str(e)}")
             raise ValidationError({"non_field_errors": "Failed to create user."})
 
     def login_user(self, email, password) -> dict:
         """
         Authenticates a user with email and password and returns tokens.
         """
-        user = authenticate(email=email, password=password)
+        normalized_email = str(email).lower().strip()
+        user = authenticate(username=normalized_email, password=password)
         if not user:
-            logger.warning(f"Failed login attempt for email: {email}")
+            logger.warning(f"Failed login attempt for email: {normalized_email}")
             raise AuthenticationFailed("Invalid email or password.")
             
         if not user.is_active:
