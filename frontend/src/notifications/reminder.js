@@ -9,6 +9,7 @@ Notifications.setNotificationHandler({
     try {
       const todayRef = ReflectionsRepository.getTodayReflection();
       const hasCheckedInToday = !!todayRef;
+      console.log(`[NOTIFICATION] Foreground check: checked in today = ${hasCheckedInToday}`);
       return {
         shouldShowAlert: !hasCheckedInToday,
         shouldPlaySound: !hasCheckedInToday,
@@ -28,23 +29,40 @@ let notificationSubscription;
 let responseSubscription;
 
 export const NotificationService = {
-  initialize: () => {
+  initialize: async () => {
     if (Platform.OS === "web") return;
 
-    // Clean up old subscriptions to avoid duplicates
+    console.log("[NOTIFICATION] Initializing service...");
+
+    // Create default notification channel for Android compatibility
+    if (Platform.OS === "android") {
+      try {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "Default Reminder Channel",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#FF231F71",
+        });
+        console.log("[NOTIFICATION] Android notification channel registered: default");
+      } catch (err) {
+        console.error("[NOTIFICATION] Failed to configure Android notification channel:", err.message);
+      }
+    }
+
+    // Clean up old subscriptions to avoid duplicate listeners
     if (notificationSubscription) notificationSubscription.remove();
     if (responseSubscription) responseSubscription.remove();
 
     notificationSubscription = Notifications.addNotificationReceivedListener((notification) => {
-      console.log("[NOTIFICATIONS] Notification received in foreground:", notification);
+      console.log("[NOTIFICATION] Notification Triggered in foreground:", notification.request.identifier);
     });
 
     responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log("[NOTIFICATIONS] Notification clicked by user:", response);
+      console.log("[NOTIFICATION] Notification Clicked by user:", response.notification.request.identifier);
       NotificationService.handleNotificationResponse(response);
     });
 
-    console.log("[NOTIFICATIONS] Service listeners initialized.");
+    console.log("[NOTIFICATION] Service listeners initialized successfully.");
   },
 
   requestPermissions: async () => {
@@ -60,13 +78,13 @@ export const NotificationService = {
       }
       
       if (finalStatus !== "granted") {
-        console.log("[NOTIFICATIONS] Permission Denied - permissions disabled by user.");
+        console.log("[NOTIFICATION] Permission Denied - permissions disabled by user.");
         return false;
       }
-      console.log("[NOTIFICATIONS] Permission Granted - notification delivery enabled.");
+      console.log("[NOTIFICATION] Permission Granted - delivery authorized.");
       return true;
     } catch (error) {
-      console.error("[NOTIFICATIONS] Failed to request notification permissions:", error);
+      console.error("[NOTIFICATION] Failed to request permissions:", error.message);
       return false;
     }
   },
@@ -74,10 +92,14 @@ export const NotificationService = {
   cancelReminder: async (id) => {
     if (Platform.OS === "web") return;
     try {
-      await Notifications.cancelScheduledNotificationAsync(`reminder_${id}`);
-      console.log(`[NOTIFICATIONS] Cancelled reminder ${id}`);
+      console.log(`[NOTIFICATION] Cancelling rolling reminders for ID: ${id}`);
+      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+        const identifier = `reminder_${id}_day_${dayOffset}`;
+        await Notifications.cancelScheduledNotificationAsync(identifier);
+      }
+      console.log(`[NOTIFICATION] Cancelled all rolling schedules for ID: ${id}`);
     } catch (error) {
-      console.error(`[NOTIFICATIONS] Failed to cancel reminder ${id}:`, error);
+      console.error(`[NOTIFICATION] Failed to cancel rolling schedules for ID ${id}:`, error.message);
     }
   },
 
@@ -85,9 +107,9 @@ export const NotificationService = {
     if (Platform.OS === "web") return;
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
-      console.log("[NOTIFICATIONS] Cancelled all scheduled notifications");
+      console.log("[NOTIFICATION] Cancelled all scheduled notifications in OS queue.");
     } catch (error) {
-      console.error("[NOTIFICATIONS] Failed to cancel all scheduled notifications:", error);
+      console.error("[NOTIFICATION] Failed to clear OS notification queue:", error.message);
     }
   },
 
@@ -95,10 +117,11 @@ export const NotificationService = {
     if (Platform.OS === "web") return;
     try {
       const { RemindersRepository } = require("../repositories/reminders");
+      console.log(`[NOTIFICATION] Scheduling primary reminder to: ${timeString} | Enabled: ${enabled}`);
       await RemindersRepository.updateReminder("00000000-0000-0000-0000-000000000001", timeString, enabled);
       await NotificationService.scheduleAllReminders();
     } catch (error) {
-      console.error("[NOTIFICATIONS] scheduleDailyReminder failed:", error);
+      console.error("[NOTIFICATION] scheduleDailyReminder failed:", error.message);
     }
   },
 
@@ -106,10 +129,11 @@ export const NotificationService = {
     if (Platform.OS === "web") return;
     try {
       const { RemindersRepository } = require("../repositories/reminders");
+      console.log(`[NOTIFICATION] Scheduling secondary reminder to: ${timeString} | Enabled: ${enabled}`);
       await RemindersRepository.updateReminder("00000000-0000-0000-0000-000000000002", timeString, enabled);
       await NotificationService.scheduleAllReminders();
     } catch (error) {
-      console.error("[NOTIFICATIONS] scheduleSecondaryReminder failed:", error);
+      console.error("[NOTIFICATION] scheduleSecondaryReminder failed:", error.message);
     }
   },
 
@@ -117,12 +141,12 @@ export const NotificationService = {
     if (Platform.OS === "web") return;
 
     try {
-      // 1. Cancel previous to avoid duplicate triggers
+      // 1. Cancel previous rolling notifications to prevent duplicates
       await Notifications.cancelAllScheduledNotificationsAsync();
 
       const hasPermission = await NotificationService.requestPermissions();
       if (!hasPermission) {
-        console.log("[NOTIFICATIONS] Permission Denied - Skipping scheduling.");
+        console.log("[NOTIFICATION] Permission Denied - Skipping scheduling sequence.");
         return;
       }
 
@@ -133,9 +157,9 @@ export const NotificationService = {
       const todayRef = ReflectionsRepository.getTodayReflection();
       const hasCheckedInToday = !!todayRef;
 
-      const scheduleReminder = async (id, reminder, defaultTime) => {
+      const scheduleReminderWindow = async (id, reminder, defaultTime) => {
         if (!reminder || reminder.enabled !== 1) {
-          console.log(`[NOTIFICATIONS] Notification Cancelled - Reminder ${id} is disabled, skipping.`);
+          console.log(`[NOTIFICATION] Reminder ${id} is disabled, skipping scheduling.`);
           return;
         }
 
@@ -144,57 +168,52 @@ export const NotificationService = {
         const minute = parseInt(parts[1], 10);
 
         const now = new Date();
-        const currentHour = now.getHours();
-        const currentMin = now.getMinutes();
 
-        // Check if the trigger time is upcoming today
-        const isUpcomingToday = currentHour < hour || (currentHour === hour && currentMin < minute);
+        console.log(`[NOTIFICATION] Scheduling 7-day rolling window for reminder ${id} at ${hour}:${minute}`);
 
-        if (hasCheckedInToday && isUpcomingToday) {
-          // Trigger tomorrow (one-time) so it skips today
-          const tomorrow = new Date();
-          tomorrow.setDate(now.getDate() + 1);
-          
+        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+          const targetDate = new Date();
+          targetDate.setDate(now.getDate() + dayOffset);
+          targetDate.setHours(hour, minute, 0, 0);
+
+          // Skip if trigger time has already passed today
+          if (targetDate.getTime() <= now.getTime()) {
+            continue;
+          }
+
+          // Skip today's reminder if user has already checked in today
+          if (dayOffset === 0 && hasCheckedInToday) {
+            console.log(`[NOTIFICATION] Omit: user checked in today, skipping trigger for today's reminder ${id}`);
+            continue;
+          }
+
+          const identifier = `reminder_${id}_day_${dayOffset}`;
           await Notifications.scheduleNotificationAsync({
-            identifier: `reminder_${id}`,
+            identifier,
             content: {
               title: "Resolve - Daily Reflection",
               body: "Take a moment to reflect on your day and maintain your streak. ✨",
               sound: true,
               priority: Notifications.AndroidNotificationPriority.HIGH,
-              data: { screen: "Home" }
+              data: { screen: "Home" },
+              channelId: "default",
             },
             trigger: {
-              date: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), hour, minute, 0),
+              date: targetDate,
             },
           });
-          console.log(`[NOTIFICATIONS] Notification Scheduled - skipped-today reminder ${id} for tomorrow at ${hour}:${minute}`);
-        } else {
-          // Regular daily repeating trigger
-          await Notifications.scheduleNotificationAsync({
-            identifier: `reminder_${id}`,
-            content: {
-              title: "Resolve - Daily Reflection",
-              body: "Take a moment to reflect on your day and maintain your streak. ✨",
-              sound: true,
-              priority: Notifications.AndroidNotificationPriority.HIGH,
-              data: { screen: "Home" }
-            },
-            trigger: {
-              hour: hour,
-              minute: minute,
-              repeats: true,
-            },
-          });
-          console.log(`[NOTIFICATIONS] Notification Scheduled - daily repeating reminder ${id} for ${hour}:${minute}`);
+          console.log(`[NOTIFICATION] Scheduled rolling trigger: ${identifier} => ${targetDate.toLocaleString()}`);
         }
       };
 
-      await scheduleReminder("1", reminder1, "18:00:00");
-      await scheduleReminder("2", reminder2, "10:00:00");
+      await scheduleReminderWindow("1", reminder1, "18:00:00");
+      await scheduleReminderWindow("2", reminder2, "10:00:00");
+
+      const pending = await Notifications.getAllScheduledNotificationsAsync();
+      console.log(`[NOTIFICATION] Rescheduled successfully. Active pending OS queue size: ${pending.length}`);
 
     } catch (error) {
-      console.error("Failed to schedule all reminders:", error);
+      console.error("[NOTIFICATION] Failed to schedule rolling reminders:", error.message);
     }
   },
 
@@ -207,7 +226,7 @@ export const NotificationService = {
     try {
       return await Notifications.getAllScheduledNotificationsAsync();
     } catch (error) {
-      console.error("[NOTIFICATIONS] Failed to query pending scheduled notifications:", error);
+      console.error("[NOTIFICATION] Failed to query pending scheduled notifications:", error.message);
       return [];
     }
   },
@@ -216,13 +235,13 @@ export const NotificationService = {
     try {
       const data = response.notification.request.content.data;
       if (data && data.screen) {
-        console.log(`[NOTIFICATIONS] Deep linking to screen: ${data.screen}`);
+        console.log(`[NOTIFICATION] Click deep link redirection to: ${data.screen}`);
         navigate(data.screen);
       } else {
         navigate("Home");
       }
     } catch (error) {
-      console.error("[NOTIFICATIONS] Error handling notification response:", error);
+      console.error("[NOTIFICATION] Error handling clicked response:", error.message);
     }
   }
 };
