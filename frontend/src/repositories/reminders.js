@@ -3,16 +3,16 @@ import db from "../database/sqlite";
 export const RemindersRepository = {
   getReminder1: () => {
     try {
-      let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_1"]);
+      let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["00000000-0000-0000-0000-000000000001"]);
       if (!reminder) {
         const timestamp = new Date().toISOString();
         console.log("[DATABASE] Insert - Seeding default reminder 1 (18:00)");
         db.runSync(
           `INSERT INTO reminders (id, time, enabled, repeat_daily, version, is_deleted, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?);`,
-          ["default_reminder_1", "18:00:00", 1, 1, 1, 0, timestamp]
+          ["00000000-0000-0000-0000-000000000001", "18:00:00", 1, 1, 1, 0, timestamp]
         );
-        reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_1"]);
+        reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["00000000-0000-0000-0000-000000000001"]);
       }
       return reminder;
     } catch (error) {
@@ -23,16 +23,16 @@ export const RemindersRepository = {
 
   getReminder2: () => {
     try {
-      let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_2"]);
+      let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["00000000-0000-0000-0000-000000000002"]);
       if (!reminder) {
         const timestamp = new Date().toISOString();
         console.log("[DATABASE] Insert - Seeding default reminder 2 (10:00)");
         db.runSync(
           `INSERT INTO reminders (id, time, enabled, repeat_daily, version, is_deleted, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?);`,
-          ["default_reminder_2", "10:00:00", 0, 1, 1, 0, timestamp]
+          ["00000000-0000-0000-0000-000000000002", "10:00:00", 0, 1, 1, 0, timestamp]
         );
-        reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_2"]);
+        reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["00000000-0000-0000-0000-000000000002"]);
       }
       return reminder;
     } catch (error) {
@@ -84,7 +84,7 @@ export const RemindersRepository = {
 
   // Backward compatible update alias
   update: (time, enabled, repeatDaily) => {
-    return RemindersRepository.updateReminder("default_reminder_1", time, enabled);
+    return RemindersRepository.updateReminder("00000000-0000-0000-0000-000000000001", time, enabled);
   },
 
   upsert: (rem) => {

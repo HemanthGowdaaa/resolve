@@ -3,7 +3,8 @@ import { Platform } from "react-native";
 import { useAuthStore } from "../store/useAuthStore";
 
 // Target production Render backend server
-export const API_BASE_URL = "https://resolve-48wh.onrender.com";
+// export const API_BASE_URL = "https://resolve-48wh.onrender.com";
+export const API_BASE_URL = "http://127.0.0.1:8000";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -18,7 +19,7 @@ apiClient.interceptors.request.use(
   async (config) => {
     const accessToken = useAuthStore.getState().accessToken;
     const logTag = config.url.startsWith("/auth/") ? "[AUTH]" : config.url.startsWith("/sync/") ? "[SYNC]" : "[API]";
-    
+
     console.log(`${logTag} Request => ${config.method.toUpperCase()} ${config.url}`);
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
@@ -65,12 +66,12 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     const logTag = originalRequest?.url?.startsWith("/auth/") ? "[AUTH]" : originalRequest?.url?.startsWith("/sync/") ? "[SYNC]" : "[API]";
-    
+
     console.error(`${logTag} Response => FAILURE`, error.response ? `${error.response.status} ${originalRequest.url}` : error.message);
     if (error.response?.data) {
       console.error(`${logTag} Response Error Body =>`, JSON.stringify(error.response.data));
     }
-    
+
     // Check if the error is 401 (Unauthorized) and not already a retry attempt
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (originalRequest.url === "/auth/refresh/" || originalRequest.url === "/auth/login/") {
@@ -113,7 +114,7 @@ apiClient.interceptors.response.use(
 
         console.log("[AUTH] Token Rotation => Access token rotated successfully. Re-hydrating store.");
         await useAuthStore.getState().setTokens(newAccessToken, newRefreshToken);
-        
+
         processQueue(null, newAccessToken);
         isRefreshing = false;
 

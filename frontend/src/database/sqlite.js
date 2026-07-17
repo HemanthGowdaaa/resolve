@@ -28,6 +28,9 @@ try {
       is_deleted INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL
     );
+
+    UPDATE reminders SET id = '00000000-0000-0000-0000-000000000001' WHERE id = 'default_reminder_1';
+    UPDATE reminders SET id = '00000000-0000-0000-0000-000000000002' WHERE id = 'default_reminder_2';
   `);
   console.log("SQLite database and tables initialized successfully.");
 } catch (error) {

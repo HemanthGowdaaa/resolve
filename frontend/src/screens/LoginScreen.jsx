@@ -10,6 +10,8 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { useAuthStore } from "../store/useAuthStore";
 import { AuthService } from "../services/auth";
 import { useTheme } from "../providers/ThemeProvider";
@@ -17,6 +19,8 @@ import { RADIUS, SPACING, TYPOGRAPHY } from "../constants/theme";
 import Input from "../components/Input";
 import Button from "../components/Button";
 import { Feather } from "../components/FeatherIcon";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export const LoginScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -59,19 +63,83 @@ export const LoginScreen = ({ navigation }) => {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      // Exchange mock token for development convenience
-      const response = await AuthService.googleLogin("mock_token_12345");
-      
-      // 1. Store tokens first
-      await setTokens(response.access, response.refresh);
-      
-      // 2. Fetch profile
-      const profile = await AuthService.getProfile();
-      
-      // 3. Set profile in store
-      await setUser(profile);
+      const clientId = "mock-google-client-id.apps.googleusercontent.com";
+      const redirectUri = Platform.OS === "web" 
+        ? window.location.origin 
+        : Linking.createURL("oauth");
+
+      const nonce = Math.random().toString(36).substring(2, 15);
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + 
+        `client_id=${clientId}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&response_type=id_token` +
+        `&scope=openid%20profile%20email` +
+        `&nonce=${nonce}` +
+        `&prompt=select_account`;
+
+      console.log("[AUTH] Google Sign-In => Initiating auth session:", authUrl);
+
+      let authResult;
+      if (Platform.OS === "web") {
+        const width = 500;
+        const height = 600;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        
+        const popup = window.open(
+          authUrl,
+          "Google Sign In",
+          `width=${width},height=${height},top=${top},left=${left}`
+        );
+
+        authResult = await new Promise((resolve, reject) => {
+          const interval = setInterval(() => {
+            try {
+              if (!popup || popup.closed) {
+                clearInterval(interval);
+                reject(new Error("Google Sign-In popup closed by user."));
+                return;
+              }
+              const currentUrl = popup.location.href;
+              if (currentUrl.includes("access_token=") || currentUrl.includes("id_token=")) {
+                clearInterval(interval);
+                popup.close();
+                resolve(currentUrl);
+              }
+            } catch (e) {
+              // Ignore cross-origin errors during transitions
+            }
+          }, 500);
+        });
+      } else {
+        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+        if (result.type === "success") {
+          authResult = result.url;
+        } else {
+          throw new Error("Google Sign-In cancelled.");
+        }
+      }
+
+      if (authResult) {
+        const hash = authResult.split("#")[1] || authResult.split("?")[1] || "";
+        const urlParams = new URLSearchParams(hash);
+        const idToken = urlParams.get("id_token") || urlParams.get("access_token");
+
+        if (!idToken) {
+          throw new Error("Failed to extract ID token from Google authorization response.");
+        }
+
+        console.log("[AUTH] Google Sign-In Token Retrieved, submitting to backend...");
+        const response = await AuthService.googleLogin(idToken);
+        
+        await setTokens(response.access, response.refresh);
+        const profile = await AuthService.getProfile();
+        await setUser(profile);
+        console.log("[AUTH] Google login completed successfully.");
+      }
     } catch (error) {
-      Alert.alert("Google Sign-In Failed", "Could not complete Google authentication.");
+      console.error("[AUTH] Google Sign-In Failed:", error.message);
+      Alert.alert("Google Sign-In Failed", error.message || "Could not complete Google authentication.");
     } finally {
       setGoogleLoading(false);
     }

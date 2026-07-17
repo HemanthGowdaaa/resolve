@@ -13,6 +13,25 @@ class WebMemoryDatabase {
 
   execSync(sql) {
     console.log(`[WebMemoryDatabase] execSync: ${sql}`);
+    // Support table migration
+    if (sql.includes("UPDATE reminders SET id = '00000000-0000-0000-0000-000000000001'")) {
+      if (this.tables.reminders["default_reminder_1"]) {
+        this.tables.reminders["00000000-0000-0000-0000-000000000001"] = {
+          ...this.tables.reminders["default_reminder_1"],
+          id: "00000000-0000-0000-0000-000000000001"
+        };
+        delete this.tables.reminders["default_reminder_1"];
+      }
+    }
+    if (sql.includes("UPDATE reminders SET id = '00000000-0000-0000-0000-000000000002'")) {
+      if (this.tables.reminders["default_reminder_2"]) {
+        this.tables.reminders["00000000-0000-0000-0000-000000000002"] = {
+          ...this.tables.reminders["default_reminder_2"],
+          id: "00000000-0000-0000-0000-000000000002"
+        };
+        delete this.tables.reminders["default_reminder_2"];
+      }
+    }
     // Support table deletion on logout
     if (sql.includes("DELETE FROM reflections")) {
       this.tables.reflections = {};

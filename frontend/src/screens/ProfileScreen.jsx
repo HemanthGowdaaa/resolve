@@ -115,13 +115,13 @@ export const ProfileScreen = ({ navigation }) => {
 
     // Save in local SQLite
     const updated1 = RemindersRepository.updateReminder(
-      "default_reminder_1",
+      "00000000-0000-0000-0000-000000000001",
       `${time1Input}:00`,
       reminder1Enabled
     );
 
     const updated2 = RemindersRepository.updateReminder(
-      "default_reminder_2",
+      "00000000-0000-0000-0000-000000000002",
       `${time2Input}:00`,
       reminder2Enabled
     );
