@@ -8,7 +8,24 @@ class WebMemoryDatabase {
       reflections: {},
       reminders: {}
     };
-    console.log("[WebMemoryDatabase] Initialized in-memory SQLite mock database for Web platform.");
+    try {
+      const stored = window.localStorage.getItem("web_sqlite_data");
+      if (stored) {
+        this.tables = JSON.parse(stored);
+        console.log("[WebMemoryDatabase] Loaded database state from localStorage.");
+      }
+    } catch (e) {
+      console.warn("[WebMemoryDatabase] Failed to load from localStorage:", e.message);
+    }
+    console.log("[WebMemoryDatabase] Initialized mock database with localStorage sync.");
+  }
+
+  saveToLocalStorage() {
+    try {
+      window.localStorage.setItem("web_sqlite_data", JSON.stringify(this.tables));
+    } catch (e) {
+      console.warn("[WebMemoryDatabase] Failed to save to localStorage:", e.message);
+    }
   }
 
   execSync(sql) {
@@ -39,6 +56,7 @@ class WebMemoryDatabase {
     if (sql.includes("DELETE FROM reminders")) {
       this.tables.reminders = {};
     }
+    this.saveToLocalStorage();
   }
 
   runSync(sql, params = []) {
@@ -95,6 +113,7 @@ class WebMemoryDatabase {
       delete this.tables.reminders[id];
     }
 
+    this.saveToLocalStorage();
     return { changes: 1 };
   }
 
