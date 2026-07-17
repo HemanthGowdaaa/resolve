@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { mmkvStorage } from "../storage/mmkv";
+import { secureStorage } from "../storage/mmkv";
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -9,13 +9,13 @@ export const useAuthStore = create((set, get) => ({
   isHydrated: false,
 
   setTokens: async (accessToken, refreshToken) => {
-    await mmkvStorage.setItem("accessToken", accessToken);
-    await mmkvStorage.setItem("refreshToken", refreshToken);
+    await secureStorage.setItem("accessToken", accessToken);
+    await secureStorage.setItem("refreshToken", refreshToken);
     set({ accessToken, refreshToken, isAuthenticated: !!accessToken });
   },
 
   setUser: async (user) => {
-    await mmkvStorage.setItem("user", JSON.stringify(user));
+    await secureStorage.setItem("user", JSON.stringify(user));
     set({ user });
   },
 
@@ -56,9 +56,9 @@ export const useAuthStore = create((set, get) => ({
       console.warn("Failed to clear last sync time:", prefErr.message);
     }
 
-    await mmkvStorage.removeItem("accessToken");
-    await mmkvStorage.removeItem("refreshToken");
-    await mmkvStorage.removeItem("user");
+    await secureStorage.removeItem("accessToken");
+    await secureStorage.removeItem("refreshToken");
+    await secureStorage.removeItem("user");
     set({
       user: null,
       accessToken: null,
@@ -69,9 +69,9 @@ export const useAuthStore = create((set, get) => ({
 
   hydrate: async () => {
     try {
-      const accessToken = await mmkvStorage.getItem("accessToken");
-      const refreshToken = await mmkvStorage.getItem("refreshToken");
-      const userStr = await mmkvStorage.getItem("user");
+      const accessToken = await secureStorage.getItem("accessToken");
+      const refreshToken = await secureStorage.getItem("refreshToken");
+      const userStr = await secureStorage.getItem("user");
       const user = userStr ? JSON.parse(userStr) : null;
 
       set({
