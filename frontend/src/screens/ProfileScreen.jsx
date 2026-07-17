@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  SafeAreaView,
   ScrollView,
   Switch,
   Alert,
@@ -11,6 +10,7 @@ import {
   Share,
   TouchableOpacity,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "../store/useAuthStore";
 import { usePreferenceStore } from "../store/usePreferenceStore";
 import { useTheme } from "../providers/ThemeProvider";
@@ -36,8 +36,10 @@ export const ProfileScreen = ({ navigation }) => {
     setThemeDark 
   } = usePreferenceStore();
 
-  const [reminderEnabled, setReminderEnabled] = useState(true);
-  const [timeInput, setTimeInput] = useState(reminderTime);
+  const [reminder1Enabled, setReminder1Enabled] = useState(true);
+  const [time1Input, setTime1Input] = useState("18:00");
+  const [reminder2Enabled, setReminder2Enabled] = useState(false);
+  const [time2Input, setTime2Input] = useState("10:00");
   
   // Local Stats State
   const [stats, setStats] = useState({
@@ -60,10 +62,15 @@ export const ProfileScreen = ({ navigation }) => {
 
   const loadProfileData = () => {
     // 1. Load local reminder config
-    const reminder = RemindersRepository.get();
-    if (reminder) {
-      setReminderEnabled(reminder.enabled === 1);
-      setTimeInput(reminder.time.substring(0, 5)); // format HH:MM
+    const r1 = RemindersRepository.getReminder1();
+    if (r1) {
+      setReminder1Enabled(r1.enabled === 1);
+      setTime1Input(r1.time.substring(0, 5));
+    }
+    const r2 = RemindersRepository.getReminder2();
+    if (r2) {
+      setReminder2Enabled(r2.enabled === 1);
+      setTime2Input(r2.time.substring(0, 5));
     }
 
     // 2. Load and compute local stats
@@ -101,24 +108,30 @@ export const ProfileScreen = ({ navigation }) => {
   const handleSaveReminderSettings = async () => {
     // Validate HH:MM time format
     const timeReg = /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timeReg.test(timeInput)) {
-      Alert.alert("Invalid Time", "Please enter time in HH:MM format (e.g. 18:00 or 20:30)");
+    if (!timeReg.test(time1Input) || !timeReg.test(time2Input)) {
+      Alert.alert("Invalid Time", "Please enter time in HH:MM format (e.g. 18:00 or 10:00)");
       return;
     }
 
     // Save in local SQLite
-    const updated = RemindersRepository.update(
-      `${timeInput}:00`, 
-      reminderEnabled, 
-      true
+    const updated1 = RemindersRepository.updateReminder(
+      "default_reminder_1",
+      `${time1Input}:00`,
+      reminder1Enabled
     );
 
-    if (updated) {
-      setReminderTime(timeInput);
+    const updated2 = RemindersRepository.updateReminder(
+      "default_reminder_2",
+      `${time2Input}:00`,
+      reminder2Enabled
+    );
+
+    if (updated1 && updated2) {
+      setReminderTime(time1Input); // Sync fallback settings
       
       // Update system reminder channel
-      await NotificationService.scheduleDailyReminder(`${timeInput}:00`, reminderEnabled);
-      Alert.alert("Success", "Reminder configurations saved.");
+      await NotificationService.scheduleAllReminders();
+      Alert.alert("Success", "Reminder settings saved successfully.");
     } else {
       Alert.alert("Error", "Failed to update reminder settings.");
     }
@@ -234,29 +247,49 @@ export const ProfileScreen = ({ navigation }) => {
 
           <View style={styles.divider} />
 
-          <Text style={[styles.rowLabel, { color: colors.textPrimary, marginBottom: SPACING.sm }]}>
-            Daily Reminder
+          <Text style={[styles.rowLabel, { color: colors.textPrimary, marginBottom: SPACING.xs }]}>
+            Daily Reminders
           </Text>
+
+          {/* Reminder 1: Primary Evening */}
           <View style={styles.row}>
-            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>Enable Notification</Text>
-            <Switch value={reminderEnabled} onValueChange={setReminderEnabled} />
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>Primary Evening (e.g. 18:00)</Text>
+            <Switch value={reminder1Enabled} onValueChange={setReminder1Enabled} />
+          </View>
+          <View style={[styles.timeRow, { marginBottom: SPACING.md }]}>
+            <Input
+              label="Time (HH:MM)"
+              placeholder="e.g. 18:00"
+              value={time1Input}
+              onChangeText={setTime1Input}
+              style={styles.timeInput}
+              disabled={!reminder1Enabled}
+            />
           </View>
 
+          <View style={styles.divider} />
+
+          {/* Reminder 2: Secondary Morning */}
+          <View style={styles.row}>
+            <Text style={[styles.rowSubLabel, { color: colors.textSecondary }]}>Secondary Morning (e.g. 10:00)</Text>
+            <Switch value={reminder2Enabled} onValueChange={setReminder2Enabled} />
+          </View>
           <View style={styles.timeRow}>
             <Input
-              label="Reminder Time (HH:MM)"
-              placeholder="e.g. 18:00"
-              value={timeInput}
-              onChangeText={setTimeInput}
+              label="Time (HH:MM)"
+              placeholder="e.g. 10:00"
+              value={time2Input}
+              onChangeText={setTime2Input}
               style={styles.timeInput}
-              disabled={!reminderEnabled}
-            />
-            <Button
-              title="Save Time"
-              onPress={handleSaveReminderSettings}
-              style={styles.timeSaveBtn}
+              disabled={!reminder2Enabled}
             />
           </View>
+
+          <Button
+            title="Save Reminder Settings"
+            onPress={handleSaveReminderSettings}
+            style={{ marginTop: SPACING.md }}
+          />
         </Card>
 
         {/* Sync Data Block */}

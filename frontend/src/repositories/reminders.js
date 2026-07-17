@@ -1,26 +1,47 @@
 import db from "../database/sqlite";
 
 export const RemindersRepository = {
-  get: () => {
+  getReminder1: () => {
     try {
-      let reminder = db.getFirstSync("SELECT * FROM reminders WHERE is_deleted = 0 LIMIT 1;");
-      
-      // If no local reminder exists, seed a default one (8:00 PM)
+      let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_1"]);
       if (!reminder) {
-        const uuid = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
         const timestamp = new Date().toISOString();
         db.runSync(
           `INSERT INTO reminders (id, time, enabled, repeat_daily, version, is_deleted, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?);`,
-          [uuid, "20:00:00", 1, 1, 1, 0, timestamp]
+          ["default_reminder_1", "18:00:00", 1, 1, 1, 0, timestamp]
         );
-        reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", [uuid]);
+        reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_1"]);
       }
       return reminder;
     } catch (error) {
-      console.error("Failed to query reminder settings:", error);
+      console.error("Failed to query default reminder 1:", error);
       return null;
     }
+  },
+
+  getReminder2: () => {
+    try {
+      let reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_2"]);
+      if (!reminder) {
+        const timestamp = new Date().toISOString();
+        db.runSync(
+          `INSERT INTO reminders (id, time, enabled, repeat_daily, version, is_deleted, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?);`,
+          ["default_reminder_2", "10:00:00", 0, 1, 1, 0, timestamp]
+        );
+        reminder = db.getFirstSync("SELECT * FROM reminders WHERE id = ? LIMIT 1;", ["default_reminder_2"]);
+      }
+      return reminder;
+    } catch (error) {
+      console.error("Failed to query default reminder 2:", error);
+      return null;
+    }
+  },
+
+  // Backward compatible fallback wrapper
+  get: () => {
+    return RemindersRepository.getReminder1();
   },
 
   getSyncable: () => {
@@ -41,26 +62,26 @@ export const RemindersRepository = {
     }
   },
 
-  update: (time, enabled, repeatDaily) => {
-    const reminder = RemindersRepository.get();
-    if (!reminder) return null;
-    
+  updateReminder: (id, time, enabled) => {
     const enabledNum = enabled ? 1 : 0;
-    const repeatNum = repeatDaily ? 1 : 0;
     const timestamp = new Date().toISOString();
-    
     try {
       db.runSync(
         `UPDATE reminders 
-         SET time = ?, enabled = ?, repeat_daily = ?, version = version + 1, updated_at = ?
+         SET time = ?, enabled = ?, version = version + 1, updated_at = ?
          WHERE id = ?;`,
-        [time, enabledNum, repeatNum, timestamp, reminder.id]
+        [time, enabledNum, timestamp, id]
       );
-      return RemindersRepository.getById(reminder.id);
+      return RemindersRepository.getById(id);
     } catch (error) {
-      console.error("Failed to update reminder:", error);
+      console.error(`Failed to update reminder ${id}:`, error);
       return null;
     }
+  },
+
+  // Backward compatible update alias
+  update: (time, enabled, repeatDaily) => {
+    return RemindersRepository.updateReminder("default_reminder_1", time, enabled);
   },
 
   upsert: (rem) => {
@@ -90,4 +111,5 @@ export const RemindersRepository = {
     }
   }
 };
+
 export default RemindersRepository;

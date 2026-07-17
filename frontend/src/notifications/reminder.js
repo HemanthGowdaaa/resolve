@@ -3,11 +3,24 @@ import { Platform } from "react-native";
 import { ReflectionsRepository } from "../repositories/reflections";
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async () => {
+    // Dynamic suppression in foreground if already checked in today
+    try {
+      const todayRef = ReflectionsRepository.getTodayReflection();
+      const hasCheckedInToday = !!todayRef;
+      return {
+        shouldShowAlert: !hasCheckedInToday,
+        shouldPlaySound: !hasCheckedInToday,
+        shouldSetBadge: !hasCheckedInToday,
+      };
+    } catch (e) {
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      };
+    }
+  },
 });
 
 export const NotificationService = {
@@ -44,64 +57,91 @@ export const NotificationService = {
     }
   },
 
-  scheduleDailyReminder: async (timeString, enabled = true) => {
+  scheduleAllReminders: async () => {
     if (Platform.OS === "web") return;
 
-    // First cancel existing to prevent duplicates
-    await NotificationService.cancelReminders();
-
-    if (!enabled) {
-      console.log("Reminders are disabled, skipped scheduling.");
-      return;
-    }
-
-    const hasPermission = await NotificationService.requestPermissions();
-    if (!hasPermission) return;
-
-    // Parse timeString (format "HH:MM:SS" or "HH:MM")
-    const parts = timeString.split(":");
-    const hour = parseInt(parts[0], 10) || 20;
-    const minute = parseInt(parts[1], 10) || 0;
-
     try {
-      // Check if user has already checked in today.
-      // If today is completed, we want the daily reminder to start from tomorrow!
+      // 1. Cancel previous to avoid duplicate triggers
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      const hasPermission = await NotificationService.requestPermissions();
+      if (!hasPermission) {
+        console.log("Notification permission not granted, skipping scheduling.");
+        return;
+      }
+
+      const { RemindersRepository } = require("../repositories/reminders");
+      const reminder1 = RemindersRepository.getReminder1();
+      const reminder2 = RemindersRepository.getReminder2();
+
       const todayRef = ReflectionsRepository.getTodayReflection();
       const hasCheckedInToday = !!todayRef;
 
-      if (hasCheckedInToday) {
-        // Schedule starting tomorrow:
-        // We schedule a daily recurring reminder. Since the API triggers at hour/minute daily,
-        // we can schedule it. However, if they already checked in today, it could still fire today
-        // if today's time hasn't arrived.
-        // To skip today, we can check the time. If it is before today's target time,
-        // we can schedule the reminder as a daily trigger, but wait, in Android/iOS, a daily trigger
-        // will fire today if the time hasn't passed.
-        // So if we have checked in, we can schedule a daily recurring trigger, but we could also
-        // just let it be, or schedule it to start tomorrow. Since Expo notifications don't support a 
-        // "start date" directly on recurring calendar triggers, it's standard to schedule the recurring 
-        // trigger and let the OS handle it, or check status on notification receive.
-        console.log("Already checked in today. Scheduling daily reminder recurring trigger.");
-      }
+      const scheduleReminder = async (id, reminder, defaultTime) => {
+        if (!reminder || reminder.enabled !== 1) {
+          console.log(`Reminder ${id} is disabled, skipped scheduling.`);
+          return;
+        }
 
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Resolve - Daily Reflection",
-          body: "Take a moment to reflect on your day and maintain your streak. ✨",
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: {
-          hour: hour,
-          minute: minute,
-          repeats: true,
-        },
-      });
+        const parts = (reminder.time || defaultTime).split(":");
+        const hour = parseInt(parts[0], 10);
+        const minute = parseInt(parts[1], 10);
 
-      console.log(`Scheduled recurring daily reminder for ${hour}:${minute.toString().padStart(2, "0")}`);
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMin = now.getMinutes();
+
+        // Check if the trigger time is upcoming today
+        const isUpcomingToday = currentHour < hour || (currentHour === hour && currentMin < minute);
+
+        if (hasCheckedInToday && isUpcomingToday) {
+          // Trigger tomorrow (one-time) so it skips today
+          const tomorrow = new Date();
+          tomorrow.setDate(now.getDate() + 1);
+          
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "Resolve - Daily Reflection",
+              body: "Take a moment to reflect on your day and maintain your streak. ✨",
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.HIGH,
+            },
+            trigger: {
+              date: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), hour, minute, 0),
+            },
+          });
+          console.log(`Scheduled skipped-today reminder ${id} for tomorrow at ${hour}:${minute}`);
+        } else {
+          // Regular daily recurring trigger
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "Resolve - Daily Reflection",
+              body: "Take a moment to reflect on your day and maintain your streak. ✨",
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.HIGH,
+            },
+            trigger: {
+              hour: hour,
+              minute: minute,
+              repeats: true,
+            },
+          });
+          console.log(`Scheduled daily repeating reminder ${id} for ${hour}:${minute}`);
+        }
+      };
+
+      await scheduleReminder("1", reminder1, "18:00:00");
+      await scheduleReminder("2", reminder2, "10:00:00");
+
     } catch (error) {
-      console.error("Failed to schedule daily reminder:", error);
+      console.error("Failed to schedule all reminders:", error);
     }
+  },
+
+  // Backward compatible alias
+  scheduleDailyReminder: async (timeString, enabled = true) => {
+    await NotificationService.scheduleAllReminders();
   }
 };
+
 export default NotificationService;

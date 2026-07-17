@@ -14,7 +14,14 @@ export const RootNavigator = () => {
     Promise.all([
       hydrate(),
       hydratePreferences()
-    ]);
+    ]).then(() => {
+      try {
+        const { NotificationService } = require("../notifications/reminder");
+        NotificationService.scheduleAllReminders();
+      } catch (err) {
+        console.warn("Failed to schedule reminders on start:", err.message);
+      }
+    });
   }, []);
 
   if (!isHydrated) {

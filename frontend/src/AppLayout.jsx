@@ -2,6 +2,7 @@ import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NavigationContainer } from "@react-navigation/native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import RootNavigator from "./navigation/RootNavigator";
 
@@ -18,14 +19,16 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <NavigationContainer>
-            {/* Mount standard React Navigation stack */}
-            <RootNavigator />
-          </NavigationContainer>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <NavigationContainer>
+              {/* Mount standard React Navigation stack */}
+              <RootNavigator />
+            </NavigationContainer>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

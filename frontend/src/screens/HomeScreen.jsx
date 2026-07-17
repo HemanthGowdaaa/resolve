@@ -4,12 +4,12 @@ import {
   View,
   Text,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTheme } from "../providers/ThemeProvider";
 import { ReflectionsRepository } from "../repositories/reflections";
@@ -107,6 +107,15 @@ export const HomeScreen = ({ navigation }) => {
     if (result) {
       loadData();
       Alert.alert("Success", todayReflection ? "Reflection updated." : "Checked in! Keep up the consistency. ✨");
+      
+      // Reschedule reminders to skip today's triggers since check-in is complete
+      try {
+        const { NotificationService } = require("../notifications/reminder");
+        NotificationService.scheduleAllReminders();
+      } catch (err) {
+        console.warn("Failed to reschedule reminders after check-in:", err.message);
+      }
+
       // Trigger background sync in the background
       SyncManager.runSync().then((res) => {
         if (res.success) loadData();
@@ -132,6 +141,15 @@ export const HomeScreen = ({ navigation }) => {
             const success = ReflectionsRepository.delete(todayReflection.id);
             if (success) {
               loadData();
+
+              // Reschedule reminders to restore today's triggers since check-in was deleted
+              try {
+                const { NotificationService } = require("../notifications/reminder");
+                NotificationService.scheduleAllReminders();
+              } catch (err) {
+                console.warn("Failed to reschedule reminders after delete:", err.message);
+              }
+
               SyncManager.runSync().then((res) => {
                 if (res.success) loadData();
               });

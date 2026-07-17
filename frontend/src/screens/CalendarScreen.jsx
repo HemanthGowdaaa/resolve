@@ -3,12 +3,12 @@ import {
   StyleSheet,
   View,
   Text,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   Modal,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../providers/ThemeProvider";
 import { ReflectionsRepository } from "../repositories/reflections";
 import { RADIUS, SPACING, TYPOGRAPHY } from "../constants/theme";

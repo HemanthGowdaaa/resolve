@@ -3,13 +3,13 @@ import {
   StyleSheet,
   View,
   Text,
-  SafeAreaView,
   FlatList,
   TextInput,
   TouchableOpacity,
   Alert,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../providers/ThemeProvider";
 import { ReflectionsRepository } from "../repositories/reflections";
 import { RADIUS, SPACING, TYPOGRAPHY } from "../constants/theme";

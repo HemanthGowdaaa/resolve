@@ -48,6 +48,14 @@ export const useAuthStore = create((set, get) => ({
     }
 
     // 3. Purge storage preferences and store values
+    try {
+      const { usePreferenceStore } = require("./usePreferenceStore");
+      await usePreferenceStore.getState().setLastSyncTime(null);
+      console.log("Last sync timestamp cleared on logout.");
+    } catch (prefErr) {
+      console.warn("Failed to clear last sync time:", prefErr.message);
+    }
+
     await mmkvStorage.removeItem("accessToken");
     await mmkvStorage.removeItem("refreshToken");
     await mmkvStorage.removeItem("user");
