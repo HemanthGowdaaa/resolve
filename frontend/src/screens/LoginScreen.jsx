@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
+import * as AuthSession from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
 import { useAuthStore } from "../store/useAuthStore";
 import { AuthService } from "../services/auth";
 import { useTheme } from "../providers/ThemeProvider";
@@ -28,6 +29,66 @@ export const LoginScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Construct standard Expo redirect URI (uses proxy on native, direct on web)
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: "resolve",
+    preferLocalhost: true
+  });
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    redirectUri,
+    scopes: ["openid", "profile", "email"],
+    extraParams: {
+      prompt: "select_account",
+    },
+  });
+
+  // Listen for authentication changes from the Google provider hook
+  useEffect(() => {
+    if (response) {
+      if (response.type === "success") {
+        const idToken = response.params?.id_token || response.authentication?.idToken;
+        if (idToken) {
+          handleGoogleLoginSuccess(idToken);
+        } else {
+          console.error("[AUTH] Google Sign-In Success but no ID Token found in response:", response);
+          Alert.alert("Google Sign-In Failed", "No ID Token returned from Google.");
+          setGoogleLoading(false);
+        }
+      } else if (response.type === "error" || response.type === "cancel") {
+        console.warn("[AUTH] Google Sign-In response status:", response.type);
+        setGoogleLoading(false);
+      }
+    }
+  }, [response]);
+
+  const handleGoogleLoginSuccess = async (idToken) => {
+    setGoogleLoading(true);
+    try {
+      console.log("[AUTH] Google Sign-In => Exchanging token with backend...");
+      const res = await AuthService.googleLogin(idToken);
+      
+      await setTokens(res.access, res.refresh);
+      const profile = await AuthService.getProfile();
+      await setUser(profile);
+      console.log("[AUTH] Google login completed successfully.");
+    } catch (error) {
+      console.error("[AUTH] Google Sign-In backend verification failed:", error.message);
+      Alert.alert("Google Sign-In Failed", "Verification with backend failed.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleLoginTrigger = () => {
+    setGoogleLoading(true);
+    promptAsync().catch((err) => {
+      console.error("[AUTH] Google Sign-In launch failed:", err.message);
+      setGoogleLoading(false);
+    });
+  };
+
   const {
     control,
     handleSubmit,
@@ -43,13 +104,13 @@ export const LoginScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const response = await AuthService.login(data.email, data.password);
-      
+
       // 1. Store tokens first so subsequent requests are authenticated
       await setTokens(response.access, response.refresh);
-      
+
       // 2. Access profile details
       const profile = await AuthService.getProfile();
-      
+
       // 3. Store user profile in store
       await setUser(profile);
     } catch (error) {
@@ -57,91 +118,6 @@ export const LoginScreen = ({ navigation }) => {
       Alert.alert("Login Failed", errorMsg);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    try {
-      const clientId = "mock-google-client-id.apps.googleusercontent.com";
-      const redirectUri = Platform.OS === "web" 
-        ? window.location.origin 
-        : Linking.createURL("oauth");
-
-      const nonce = Math.random().toString(36).substring(2, 15);
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + 
-        `client_id=${clientId}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&response_type=id_token` +
-        `&scope=openid%20profile%20email` +
-        `&nonce=${nonce}` +
-        `&prompt=select_account`;
-
-      console.log("[AUTH] Google Sign-In => Initiating auth session:", authUrl);
-
-      let authResult;
-      if (Platform.OS === "web") {
-        const width = 500;
-        const height = 600;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
-        
-        const popup = window.open(
-          authUrl,
-          "Google Sign In",
-          `width=${width},height=${height},top=${top},left=${left}`
-        );
-
-        authResult = await new Promise((resolve, reject) => {
-          const interval = setInterval(() => {
-            try {
-              if (!popup || popup.closed) {
-                clearInterval(interval);
-                reject(new Error("Google Sign-In popup closed by user."));
-                return;
-              }
-              const currentUrl = popup.location.href;
-              if (currentUrl.includes("access_token=") || currentUrl.includes("id_token=")) {
-                clearInterval(interval);
-                popup.close();
-                resolve(currentUrl);
-              }
-            } catch (e) {
-              // Ignore cross-origin errors during transitions
-            }
-          }, 500);
-        });
-      } else {
-        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-        if (result.type === "success") {
-          authResult = result.url;
-        } else {
-          throw new Error("Google Sign-In cancelled.");
-        }
-      }
-
-      if (authResult) {
-        const hash = authResult.split("#")[1] || authResult.split("?")[1] || "";
-        const urlParams = new URLSearchParams(hash);
-        const idToken = urlParams.get("id_token") || urlParams.get("access_token");
-
-        if (!idToken) {
-          throw new Error("Failed to extract ID token from Google authorization response.");
-        }
-
-        console.log("[AUTH] Google Sign-In Token Retrieved, submitting to backend...");
-        const response = await AuthService.googleLogin(idToken);
-        
-        await setTokens(response.access, response.refresh);
-        const profile = await AuthService.getProfile();
-        await setUser(profile);
-        console.log("[AUTH] Google login completed successfully.");
-      }
-    } catch (error) {
-      console.error("[AUTH] Google Sign-In Failed:", error.message);
-      Alert.alert("Google Sign-In Failed", error.message || "Could not complete Google authentication.");
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -225,8 +201,8 @@ export const LoginScreen = ({ navigation }) => {
 
           <TouchableOpacity
             style={[styles.googleButton, { borderColor: colors.border, backgroundColor: colors.card }]}
-            onPress={handleGoogleLogin}
-            disabled={googleLoading}
+            onPress={handleGoogleLoginTrigger}
+            disabled={googleLoading || !request}
           >
             <Feather name="chrome" size={20} color={colors.textPrimary} style={styles.googleIcon} />
             <Text style={[styles.googleText, { color: colors.textPrimary }]}>
