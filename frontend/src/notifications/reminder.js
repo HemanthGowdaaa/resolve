@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { ReflectionsRepository } from "../repositories/reflections";
+import { navigate } from "../navigation/navigationRef";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => {
@@ -23,7 +24,29 @@ Notifications.setNotificationHandler({
   },
 });
 
+let notificationSubscription;
+let responseSubscription;
+
 export const NotificationService = {
+  initialize: () => {
+    if (Platform.OS === "web") return;
+
+    // Clean up old subscriptions to avoid duplicates
+    if (notificationSubscription) notificationSubscription.remove();
+    if (responseSubscription) responseSubscription.remove();
+
+    notificationSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      console.log("[NOTIFICATIONS] Notification received in foreground:", notification);
+    });
+
+    responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log("[NOTIFICATIONS] Notification clicked by user:", response);
+      NotificationService.handleNotificationResponse(response);
+    });
+
+    console.log("[NOTIFICATIONS] Service listeners initialized.");
+  },
+
   requestPermissions: async () => {
     if (Platform.OS === "web") return false;
     
@@ -48,13 +71,45 @@ export const NotificationService = {
     }
   },
 
-  cancelReminders: async () => {
+  cancelReminder: async (id) => {
+    if (Platform.OS === "web") return;
+    try {
+      await Notifications.cancelScheduledNotificationAsync(`reminder_${id}`);
+      console.log(`[NOTIFICATIONS] Cancelled reminder ${id}`);
+    } catch (error) {
+      console.error(`[NOTIFICATIONS] Failed to cancel reminder ${id}:`, error);
+    }
+  },
+
+  cancelAllReminderNotifications: async () => {
     if (Platform.OS === "web") return;
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
-      console.log("[NOTIFICATIONS] Notification Cancelled - All scheduled alerts cleared");
+      console.log("[NOTIFICATIONS] Cancelled all scheduled notifications");
     } catch (error) {
-      console.error("[NOTIFICATIONS] Failed to cancel scheduled reminders:", error);
+      console.error("[NOTIFICATIONS] Failed to cancel all scheduled notifications:", error);
+    }
+  },
+
+  scheduleDailyReminder: async (timeString, enabled = true) => {
+    if (Platform.OS === "web") return;
+    try {
+      const { RemindersRepository } = require("../repositories/reminders");
+      await RemindersRepository.updateReminder("00000000-0000-0000-0000-000000000001", timeString, enabled);
+      await NotificationService.scheduleAllReminders();
+    } catch (error) {
+      console.error("[NOTIFICATIONS] scheduleDailyReminder failed:", error);
+    }
+  },
+
+  scheduleSecondaryReminder: async (timeString, enabled = true) => {
+    if (Platform.OS === "web") return;
+    try {
+      const { RemindersRepository } = require("../repositories/reminders");
+      await RemindersRepository.updateReminder("00000000-0000-0000-0000-000000000002", timeString, enabled);
+      await NotificationService.scheduleAllReminders();
+    } catch (error) {
+      console.error("[NOTIFICATIONS] scheduleSecondaryReminder failed:", error);
     }
   },
 
@@ -101,11 +156,13 @@ export const NotificationService = {
           tomorrow.setDate(now.getDate() + 1);
           
           await Notifications.scheduleNotificationAsync({
+            identifier: `reminder_${id}`,
             content: {
               title: "Resolve - Daily Reflection",
               body: "Take a moment to reflect on your day and maintain your streak. ✨",
               sound: true,
               priority: Notifications.AndroidNotificationPriority.HIGH,
+              data: { screen: "Home" }
             },
             trigger: {
               date: new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), hour, minute, 0),
@@ -113,13 +170,15 @@ export const NotificationService = {
           });
           console.log(`[NOTIFICATIONS] Notification Scheduled - skipped-today reminder ${id} for tomorrow at ${hour}:${minute}`);
         } else {
-          // Regular daily recurring trigger
+          // Regular daily repeating trigger
           await Notifications.scheduleNotificationAsync({
+            identifier: `reminder_${id}`,
             content: {
               title: "Resolve - Daily Reflection",
               body: "Take a moment to reflect on your day and maintain your streak. ✨",
               sound: true,
               priority: Notifications.AndroidNotificationPriority.HIGH,
+              data: { screen: "Home" }
             },
             trigger: {
               hour: hour,
@@ -139,9 +198,32 @@ export const NotificationService = {
     }
   },
 
-  // Backward compatible alias
-  scheduleDailyReminder: async (timeString, enabled = true) => {
+  rescheduleAll: async () => {
     await NotificationService.scheduleAllReminders();
+  },
+
+  getPendingNotifications: async () => {
+    if (Platform.OS === "web") return [];
+    try {
+      return await Notifications.getAllScheduledNotificationsAsync();
+    } catch (error) {
+      console.error("[NOTIFICATIONS] Failed to query pending scheduled notifications:", error);
+      return [];
+    }
+  },
+
+  handleNotificationResponse: (response) => {
+    try {
+      const data = response.notification.request.content.data;
+      if (data && data.screen) {
+        console.log(`[NOTIFICATIONS] Deep linking to screen: ${data.screen}`);
+        navigate(data.screen);
+      } else {
+        navigate("Home");
+      }
+    } catch (error) {
+      console.error("[NOTIFICATIONS] Error handling notification response:", error);
+    }
   }
 };
 

@@ -5,6 +5,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import RootNavigator from "./navigation/RootNavigator";
+import { navigationRef } from "./navigation/navigationRef";
 
 // Create TanStack Query Client
 const queryClient = new QueryClient({
@@ -22,7 +23,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <NavigationContainer>
+            <NavigationContainer ref={navigationRef}>
               {/* Mount standard React Navigation stack */}
               <RootNavigator />
             </NavigationContainer>

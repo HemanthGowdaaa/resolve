@@ -17,6 +17,7 @@ export const RootNavigator = () => {
     ]).then(() => {
       try {
         const { NotificationService } = require("../notifications/reminder");
+        NotificationService.initialize();
         NotificationService.scheduleAllReminders();
       } catch (err) {
         console.warn("Failed to schedule reminders on start:", err.message);
